@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Скрипт отправки данных на соседний сервер
+
+PROG_NAME=$(basename $0)
+destination=localhost
+
+if (( $(id -u) != 0)) ; then
+    echo "$PROG_NAME: error, this script needs root privileges." >&2
+    exit 1
+fi
+
+echo "work"
