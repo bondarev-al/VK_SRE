@@ -25,4 +25,8 @@ if ssh "$destination" '[ ! -d ~/deliv_log ]'; then
     fi
 fi
 
+# Копирование файла на сервер назначения
 scp "/var/log/${file_name}" "$destination:~/deliv_log"
+
+# Удаление старых файлов
+ssh "$destination" 'find ~/deliv_log/ -type f -mtime +7 -delete'
