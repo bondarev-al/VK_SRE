@@ -18,7 +18,11 @@ echo "$(date)" > "/var/log/${file_name}"
 # Проверка создана ли папка для файлов на принимающем сервере
 if ssh "$destination" '[ ! -d ~/deliv_log ]'; then
     # Создание папки, если её нет
-    ssh "$destination" 'mkdir ~/deliv_log'
+    if ! ssh "$destination" 'mkdir ~/deliv_log'; then
+        # Ошибка, если не получилось создать папку и выход
+        echo "$PROG_NAME: error, unable to create directory." >&2
+        exit 2
+    fi
 fi
 
 scp "/var/log/${file_name}" "$destination:~/deliv_log"
