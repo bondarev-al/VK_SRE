@@ -21,3 +21,4 @@ if ssh "$destination" '[ ! -d ~/deliv_log ]'; then
     ssh "$destination" 'mkdir ~/deliv_log'
 fi
 
+scp "/var/log/${file_name}" "$destination:~/deliv_log"
