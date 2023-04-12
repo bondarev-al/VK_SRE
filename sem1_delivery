@@ -3,12 +3,21 @@
 # Скрипт отправки данных на соседний сервер
 
 PROG_NAME=$(basename $0)
-destination=localhost
-file_name=deliv_log
+destination=alexander@localhost
+file_name="deliv_log_$(date +%F-%T)"
 
+# Проверка наличия прав root, без них не получится писать в папку /var/log
 if (( $(id -u) != 0)) ; then
     echo "$PROG_NAME: error, this script needs root privileges." >&2
     exit 1
 fi
 
-echo "$(date)" > "/var/log/${file_name}_$(date +%F-%T)"
+# Генерация файла для отправки
+echo "$(date)" > "/var/log/${file_name}"
+
+# Проверка создана ли папка для файлов на принимающем сервере
+if ssh "$destination" '[ ! -d ~/deliv_log ]'; then
+    # Создание папки, если её нет
+    ssh "$destination" 'mkdir ~/deliv_log'
+fi
+
