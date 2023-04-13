@@ -17,7 +17,25 @@ fi
 # Возможность задания сервера назначения в первом позиционном параметре и ключа во втором
 if [ "$1" ]; then
     destination=$1
-    [ "$2" ] && key=$2
+    # Проверка существует ли файл ключа
+    if [ "$2" ]; then
+        if [ -e "$2" ]; then
+            key=$2
+        else
+            # Если файл не существует, выходим с ошибкой
+            echo "$PROG_NAME: error, no such file with key." >&2
+            exit 2
+        fi
+    else
+        echo "$PROG_NAME: error, enter the ssh key in the second parameter." >&2
+        exit 2
+    fi
+fi
+
+# Проверка возможности подключения к серверу
+if ! ssh -i "$key" "$destination" 'echo "test" &>/dev/null'; then
+    echo "$PROG_NAME: error, unable to connect to server." >&2
+    exit 3
 fi
 
 # Генерация файла для отправки
@@ -29,7 +47,7 @@ if ssh -i "$key" "$destination" "[ ! -d $dir_dest ]"; then
     if ! ssh -i "$key" "$destination" "mkdir $dir_dest"; then
         # Ошибка, если не получилось создать папку и выход
         echo "$PROG_NAME: error, unable to create directory." >&2
-        exit 2
+        exit 4
     fi
 fi
 
