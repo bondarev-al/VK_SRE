@@ -1,4 +1,3 @@
-import pandas as pd
 import psycopg2
 import sys
 import re
