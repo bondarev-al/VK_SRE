@@ -1,0 +1,223 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+        app.kubernetes.io/name: catsAndDogsApp
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+        volumeMounts:
+          - name: nginx-index-file
+            mountPath: /usr/share/nginx/html
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "100Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 10
+      volumes:
+        - name: nginx-index-file
+          configMap:
+            name: nginx-conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  selector:
+    app.kubernetes.io/name: catsAndDogsApp
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+data:
+  index.html: |
+    <html>
+      <head>
+        <title>Cats and Dogs Review App</title>
+      </head>
+      <h1>Cats and Dogs Review App</h1>
+    </html>
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: catdog-set
+  labels:
+    app: nginx-rev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-rev
+  serviceName: "nginx-rev"
+  template:
+    metadata:
+      labels:
+        app: nginx-rev
+        app.kubernetes.io/name: catsAndDogsRev
+    spec:
+      containers:
+      - name: nginx-rev
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: data-store
+          mountPath: /usr/share/nginx/data
+        - name: nginxcatdog-conf
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+          readOnly: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "100Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 10
+      volumes:
+      - name: nginxcatdog-conf
+        configMap:
+          name: nginxcatdog-conf
+          items:
+            - key: nginx.conf
+              path: nginx.conf
+      initContainers:
+      - name: init-data
+        image: nginx:1.14.2
+        command: ['sh', '-c', 'mkdir /usr/share/nginx/data']
+  volumeClaimTemplates:
+  - metadata:
+      name: data-store
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 0.5G
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginxcatdog-conf
+data:
+  nginx.conf: |
+    user nginx;
+    worker_processes  1;
+    events {
+      worker_connections  10240;
+    }
+    http {
+      server {
+        listen 80;
+        location /upload{
+          client_max_body_size 15g;
+          root /usr/share/nginx/data;
+          dav_access user:rw group:rw all:rw;
+          dav_methods PUT DELETE MKCOL COPY MOVE;
+          create_full_put_path on;
+          autoindex on;
+          autoindex_exact_size off;
+          autoindex_localtime on;
+          charset utf-8;
+        }
+        location / {
+          add_header Content-Type text/html;
+          return 200 '<html><body>Cats and Dogs</body></html>';
+        }
+      }
+    }
+#          root /usr/share/nginx/data;
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx-example
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          serviceName: my-service
+          servicePort: 80
+      - path: /cats/*
+        pathType: Prefix
+        backend:
+          serviceName: catdog-set-0
+          servicePort: 80
+      - path: /dogs/*
+        pathType: Prefix
+        backend:
+          serviceName: catdog-set-1
+          servicePort: 80
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: cronjob-catdog
+spec:
+  schedule: "*/15 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cronjob-catdog
+            image: busybox:1.28
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/sh
+            - -c
+            - 'wget my-service && echo "$(date) - App works" >> var/log/catAndDogsLog'
+          restartPolicy: OnFailure
