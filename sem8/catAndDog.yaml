@@ -220,4 +220,4 @@ spec:
             - /bin/sh
             - -c
             - 'wget my-service && echo "$(date) - App works" >> var/log/catAndDogsLog'
-          restartPolicy: OnFailure
+          restartPolicy: Never
